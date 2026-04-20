@@ -53,3 +53,9 @@ dkms.conf
 
 # debug information files
 *.dwo
+
+#vim temporary files
+*.swp
+
+#MacOS unnecessary file
+*.DS_Store
