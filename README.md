@@ -70,7 +70,7 @@ Compile the test program:
 
 gcc test.c -o test
 
-gcc test.c yonsei_malloc.c -o test -pthread 
+gcc test.c slow_malloc.c -o test -pthread 
 
 ./test
 
