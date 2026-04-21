@@ -1,16 +1,27 @@
 # custom-memory-allocator
-Custom C memory allocator implementing malloc, free, calloc, and realloc using sbrk and a linked-list heap structure
+Custom C memory allocator implementing malloc, free, calloc, and 
+realloc using sbrk and a linked-list heap structure
 
 ## Overview
 
-This project implements a custom dynamic memory allocator in C that provides
-replacements for the standard library functions:
+This project implements a custom dynamic memory allocator in C that
+replaces the standard library functions:
 
 - malloc
 - free
 - calloc
 - realloc
-- coalesce
+
+The allocator manages heap memory manually using `sbrk()` and tracks
+memory blocks using a singly linked list of metadata headers.
+
+The design demonstrates key concepts used in real allocators, including:
+
+- block splitting
+- block coalescing
+- free block reuse
+- heap growth via system calls
+- thread safety using `pthread_mutex`
 
 The allocator manages heap memory manually using `sbrk()` and maintains
 a linked list of memory blocks with metadata headers.
@@ -23,39 +34,43 @@ Thread safety is ensured using `pthread_mutex`.
 - Heap expansion using `sbrk()`
 - Metadata header stored before each allocated block
 - Linked list to track allocated and free blocks
-- Reuse of freed memory blocks
+- Reuse of freed memory blocks and resized, if possible
 - Thread-safe allocator using `pthread_mutex`
 
 ## Memory Layout
 
-Each allocated block contains a metadata header followed by the user data.
+Each allocated block contains a metadata header followed by the user
+memory region returned by `malloc`.
 
-| header_t | user memory |
+| header_t | user data |
 
-header_t structure:
-
-size_t size      → size of user allocation  
-unsigned is_free → whether block is free  
-header_t* next   → next block in the linked list
-
+The header stores metadata required for managing heap blocks.
 
 ## Allocation Strategy
 
-1. Search the linked list for a free block large enough.
-2. If found:
-   - mark block as used
-   - return pointer to user memory
-3. If not found:
-   - extend heap using `sbrk()`
-   - create a new block
-   - append it to the linked list
+1. Traverse the linked list to locate a free block large enough for the request.
+2. If a suitable block is found:
+   - If the block is significantly larger than the requested size,
+     it is split into two blocks:
+       [allocated block] [remaining free block]
+   - The first block is marked as used and returned to the user.
+3. If no suitable free block exists:
+   - The heap is extended using `sbrk()`
+   - A new block is created and appended to the linked list.
 
-## Coalesce Strategy
+## Block Coalescing
 
-1. The function is called whenever memory block is freed.
-2. Traverse the linked list from head to check if two adjacent blocks are free.
-   - If two adjacent blocks are free, combine them into bigger memory block
-3. This function is slow with O(n) because it traverse from start of linked list.
+To reduce heap fragmentation, adjacent free blocks are merged
+whenever `free()` is called.
+
+The coalescing algorithm:
+
+1. Traverse the linked list from the head.
+2. If two neighboring blocks are both marked free,
+   they are merged into a single larger block.
+
+This implementation performs a full list traversal and therefore
+runs in **O(n)** time.
 
 ## Freeing Memory
 
@@ -68,6 +83,17 @@ When `free()` is called:
    - the block is marked as free
    - combine free adjacent block with coalesce_free_blocks function for bigger memory block
 
+## Example Heap Layout
+
+Before allocation:
+
+[used 128] -> [free 512] -> [used 64]
+
+malloc(100)
+
+After allocation and split:
+
+[used 128] -> [used 100] -> [free 396] -> [used 64]
 
 ## Build
 On MacOS:
@@ -77,12 +103,13 @@ Compile the allocator:
 
 Compile the test program:
 `gcc test.c -o test`
+
 `gcc test.c slow_malloc.c -o test -pthread`
+
 `./test`
 
 ## Future Work
 
-- Block splitting
 - Best-fit / first-fit allocation strategies
 - Memory alignment improvements
 - Replace `sbrk()` with `mmap`

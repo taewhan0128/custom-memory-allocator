@@ -109,12 +109,29 @@ void *malloc(size_t size){
     pthread_mutex_lock(&global_malloc_lock);
     header = get_free_block(size);
 
-    // if free block of reqeust size is found,
-    // return the address of the block.
+    // if free block has sizer bigger than requested
+    // it splits the block into two piece. gives block
+    // that as exactly needed size.
     if(header){
-        header->s.is_free = 0;
-        pthread_mutex_unlock(&global_malloc_lock);
-        return (void*)(header+1);
+        // check if block has combined size required.
+        // it's important that it also has extra 16 bytes
+        if(header->s.size >= size + sizeof(header_t) + 16){
+            write(2, "Splitting block\n", 17);  // debug line for splitting block
+            header_t *new_block;
+            new_block = (header_t*)((char*)(header + 1) + size);  // caculate where new block starts
+            new_block->s.size = header->s.size - size - sizeof(header_t);
+            new_block->s.is_free = 1;
+            new_block->s.next = header->s.next; // new block inherits old block's pointer
+            header->s.size = size;              // resize the allocated block
+            header->s.next = new_block;         // link the new block
+            // fix the tail pointer, if required
+            if(header == tail){
+                tail = new_block;
+            }
+            header->s.is_free = 0;
+            pthread_mutex_unlock(&global_malloc_lock);
+            return (void*)(header+1);
+        }
     }
 
     // set total size as header size + requested block size
