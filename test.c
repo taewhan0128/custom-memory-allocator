@@ -12,5 +12,7 @@ int main(){
     free(a);
     free(b);
 
+    int *d = malloc(250);
+
     return 0;
 }

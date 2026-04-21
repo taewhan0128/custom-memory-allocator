@@ -116,7 +116,7 @@ void *malloc(size_t size){
         // check if block has combined size required.
         // it's important that it also has extra 16 bytes
         if(header->s.size >= size + sizeof(header_t) + 16){
-            write(2, "Splitting block\n", 17);  // debug line for splitting block
+            write(2, "splitting block\n", 17);  // debug line for splitting block
             header_t *new_block;
             new_block = (header_t*)((char*)(header + 1) + size);  // caculate where new block starts
             new_block->s.size = header->s.size - size - sizeof(header_t);
