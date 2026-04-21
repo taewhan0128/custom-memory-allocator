@@ -39,6 +39,25 @@ header_t *get_free_block(size_t size){
     return NULL;
 }
 
+void coalesce_free_blocks(){
+    header_t *curr = head;
+    // traverse the linked list of heap blocks
+    while (curr && curr->s.next){
+         // if both current block and next block are free,
+        // merge them into a single larger block
+        if(curr->s.is_free && curr->s.next->s.is_free){
+            write(2, "coalesece free block called\n", 27);              // debug line to check combing block
+            curr->s.size += sizeof(header_t) + curr->s.next->s.size;    // combine size of block and header
+            curr->s.next = curr->s.next->s.next;                        // traverse to next block
+            if(curr->s.next == NULL){
+                tail = curr;
+            }
+        }else{
+            curr = curr->s.next;
+        }
+    }
+}
+
 void free(void *block){
     write(2, "free called\n", 12); // debug trace
     header_t *header, *tmp;
@@ -75,6 +94,7 @@ void free(void *block){
         return;
     }
     header->s.is_free = 1;
+    coalesce_free_blocks();  // check and merge free that are beside
     pthread_mutex_unlock(&global_malloc_lock);
 }
 

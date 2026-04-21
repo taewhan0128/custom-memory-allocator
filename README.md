@@ -10,6 +10,7 @@ replacements for the standard library functions:
 - free
 - calloc
 - realloc
+- coalesce
 
 The allocator manages heap memory manually using `sbrk()` and maintains
 a linked list of memory blocks with metadata headers.
@@ -18,7 +19,7 @@ Thread safety is ensured using `pthread_mutex`.
 
 ## Features
 
-- Custom implementation of `malloc`, `free`, `calloc`, and `realloc`
+- Custom implementation of `malloc`, `free`, `calloc`, `realloc`, and `coalesce`
 - Heap expansion using `sbrk()`
 - Metadata header stored before each allocated block
 - Linked list to track allocated and free blocks
@@ -49,6 +50,13 @@ header_t* next   → next block in the linked list
    - create a new block
    - append it to the linked list
 
+## Coalesce Strategy
+
+1. The function is called whenever memory block is freed.
+2. Traverse the linked list from head to check if two adjacent blocks are free.
+   - If two adjacent blocks are free, combine them into bigger memory block
+3. This function is slow with O(n) because it traverse from start of linked list.
+
 ## Freeing Memory
 
 When `free()` is called:
@@ -58,26 +66,23 @@ When `free()` is called:
    - the heap is shrunk using `sbrk()`
 3. Otherwise:
    - the block is marked as free
-   - it can be reused by future allocations
+   - combine free adjacent block with coalesce_free_blocks function for bigger memory block
+
 
 ## Build
+On MacOS:
 
 Compile the allocator:
-
-gcc -shared -fPIC slow_malloc.c -o slow_malloc.dylib -pthread
+`gcc -shared -fPIC slow_malloc.c -o slow_malloc.dylib -pthread`
 
 Compile the test program:
-
-gcc test.c -o test
-
-gcc test.c slow_malloc.c -o test -pthread 
-
-./test
+`gcc test.c -o test`
+`gcc test.c slow_malloc.c -o test -pthread`
+`./test`
 
 ## Future Work
 
 - Block splitting
-- Block coalescing
 - Best-fit / first-fit allocation strategies
 - Memory alignment improvements
 - Replace `sbrk()` with `mmap`
