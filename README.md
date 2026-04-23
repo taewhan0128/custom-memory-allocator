@@ -20,6 +20,7 @@ The design demonstrates key concepts used in real allocators, including:
 - block splitting
 - block coalescing
 - free block reuse
+- memory alignment
 - heap growth via system calls
 - thread safety using `pthread_mutex`
 
@@ -30,12 +31,16 @@ Thread safety is ensured using `pthread_mutex`.
 
 ## Features
 
-- Custom implementation of `malloc`, `free`, `calloc`, `realloc`, and `coalesce`
+- Custom implementation of `malloc`, `free`, `calloc`, and `realloc`
 - Heap expansion using `sbrk()`
 - Metadata header stored before each allocated block
+- Singly linked list to track allocated and free blocks
 - Linked list to track allocated and free blocks
-- Reuse of freed memory blocks and resized, if possible
-- Thread-safe allocator using `pthread_mutex`
+- Reuse of freed memory blocks when possible
+- Block splitting to minimize internal fragmentation
+- Block coalescing to reduce heap fragmentation
+- 16-byte memory alignment for safe CPU access
+- Thread-safe allocator using a `global pthread_mutex`
 
 ## Memory Layout
 
@@ -44,7 +49,22 @@ memory region returned by `malloc`.
 
 | header_t | user data |
 
-The header stores metadata required for managing heap blocks.
+The header stores:
+- block size
+- free/used status
+- pointer to the next block
+
+This structure allows the allocator to traverse the heap and manage memory blocks efficiently.
+
+## Memory Alignment
+
+To ensure compatibility with CPU alignment requirements, all allocations are aligned to 16 bytes.
+Before allocation, the requested size is rounded up.
+This guarantees that returned pointers are safe for storing any primitive data type such as:
+- double
+- long
+- struct
+- SIMD data types
 
 ## Allocation Strategy
 
@@ -96,17 +116,27 @@ After allocation and split:
 [used 128] -> [used 100] -> [free 396] -> [used 64]
 
 ## Build
-On MacOS:
+MacOS:
+Compile the allocator as shared library:
 
-Compile the allocator:
 `gcc -shared -fPIC slow_malloc.c -o slow_malloc.dylib -pthread`
 
 Compile the test program:
+
 `gcc test.c -o test`
 
 `gcc test.c slow_malloc.c -o test -pthread`
 
 `./test`
+
+## Limitations
+
+This allocator is designed for educational purposes and does not implement many advanced optimizations found in production allocators such as:
+
+- segregated free lists
+- per-thread arenas
+- `mmap` for large allocations
+- best-fit / size-class allocation strategies
 
 ## Future Work
 

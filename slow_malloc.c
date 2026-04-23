@@ -67,6 +67,12 @@ void free(void *block){
     }
     pthread_mutex_lock(&global_malloc_lock);
     header = (header_t*)block - 1; // move back from user pointer to access metadata header
+    // double free protection
+    if(header->s.is_free){
+        write(2, "double free detected\n", 22);
+        pthread_mutex_unlock(&global_malloc_lock);
+        return;
+    }
     programbreak = sbrk(0);        // gives current end of data segement address
 
     // check if data segment is at the end of linked list.
@@ -106,6 +112,7 @@ void *malloc(size_t size){
     if(!size){
         return NULL;
     }
+    size = (size + 15) & ~15;         // align user size into 16 bytes for CPU safe memory access
     pthread_mutex_lock(&global_malloc_lock);
     header = get_free_block(size);
 
@@ -132,6 +139,12 @@ void *malloc(size_t size){
             pthread_mutex_unlock(&global_malloc_lock);
             return (void*)(header+1);
         }
+        // return the whole block when it can not be split
+        // no need to worry about block being small because of
+        // get_free_block function
+        header->s.is_free = 0;
+        pthread_mutex_unlock(&global_malloc_lock);
+        return (void*)(header+1);
     }
 
     // set total size as header size + requested block size
@@ -181,9 +194,14 @@ void *realloc(void *block, size_t size){
     write(2, "realloc called\n", 15);  // debug trace
     header_t *header;
     void *ret;
-    if(!block || !size){
+    if(!block){
         return malloc(size);
     }
+    if(size == 0){
+        free(block);
+        return NULL;
+    }
+    size = (size + 15) & ~15;      // align size into 16 bytes
     header = (header_t*)block - 1; // move back from user pointer to access metadata header
     if(header->s.size >= size){
         return block;
